@@ -1,3 +1,5 @@
+// backand action deploy --app taggedimages --object auth --action generateAuthUrl --master e7f01aa2-3c0e-4c7e-8ae7-c7b04654fc0a --user 828bee71-8a1e-11e6-8eff-0e00ae4d21e3
+
 // var BackandSDK = require('backandsdk/backand');
 // var backand = new BackandSDK();
 
@@ -14,52 +16,40 @@ exports.backandCallback = function(dbRow, parameters, userProfile, response) {
     
     // Bellow is an example of how to handle success and failure of your code
 
-    var runBackandSDKDemo = false;
+    // console.log(parameters.storeName);
 
-    if (runBackandSDKDemo) {
-        backandCrudDemo()
-        .then(function(result) {
-            /* response to exist the action */ response(null, {"message": "Backand SDK Demo Finished"})
-        });
+    // error handling
+    if (!parameters.storeName) {
+        return response({errorMessage: "No store name defined"}, null);
     }
-    else {
 
-        console.log(parameters.storeName);
+    var shopifyToken = new ShopifyToken({
+        "redirectUri": "https://hosting.backand.io/taggedimages/",
+        "sharedSecret": "3356c250642e10e30cc112b90e1c4dcf",
+        "apiKey": "08267a137ead223d3dedfc4fe9f6c466",
+        "shop": parameters.storeName
+    });
 
-      // error handling
-        if (!parameters.storeName) {
-            return response({errorMessage: "No store name defined"}, null);
-        }
+    //
+    // Generate a random nonce.
+    //
+    var nonce = shopifyToken.generateNonce();
 
-        var shopifyToken = new ShopifyToken({
-            "redirectUri": "http://localhost:3000/login-callback.html",
-            "sharedSecret": "3356c250642e10e30cc112b90e1c4dcf",
-            "apiKey": "08267a137ead223d3dedfc4fe9f6c466",
-            "shop": parameters.storeName
-        });
+    //
+    // Generate the authorization URL. For the sake of simplicity the shop name
+    // is fixed here but it can, of course, be passed along with the request and
+    // be different for each request.
+    //
+    var uri = shopifyToken.generateAuthUrl(parameters.storeName, undefined, nonce);
 
-        //
-        // Generate a random nonce.
-        //
-        var nonce = shopifyToken.generateNonce();
+    // a response data example
+    var payload = {
+        "authUrl": uri,
+        "nonce": nonce
+    };
 
-        //
-        // Generate the authorization URL. For the sake of simplicity the shop name
-        // is fixed here but it can, of course, be passed along with the request and
-        // be different for each request.
-        //
-        var uri = shopifyToken.generateAuthUrl(parameters.storeName, undefined, nonce);
-
-        // a response data example
-        var payload = {
-            "authUrl": uri,
-            "nonce": nonce
-        };
-
-  
-        // success handling
-        response(null, payload);
-    }
+    // success handling
+    response(null, payload);
 }
 
 // To run a demo of how to perform CRUD (Create, Read, Update and Delete) with Backand SDK, do the following:
