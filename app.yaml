@@ -1,0 +1,7 @@
+runtime: nodejs
+vm: true
+
+handlers:
+  - url: /.*
+    script: dynamic
+    secure: always

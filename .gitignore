@@ -1,1 +1,9 @@
+npm-debug.log
+digits/android/.gradle
+digits/android/app/fabric.properties
+digits/android/app/google-services.json
+service-account.json
+digits/android/build
+digits/android/app/build
 node_modules/
+config.json

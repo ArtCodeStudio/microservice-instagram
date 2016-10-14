@@ -1,0 +1,20 @@
+{
+  "name": "microservice-shopify-auth",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "keywords": [
+    "shopify",
+    "example",
+    "firebase",
+    "oauth"
+  ],
+  "author": "Luigi Pinca",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.13.3",
+    "express-session": "^1.12.1",
+    "firebase": "^3.4.1",
+    "shopify-token": "^2.1.0"
+  }
+}

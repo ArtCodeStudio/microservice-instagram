@@ -1,0 +1,10 @@
+{
+  "rules": {
+    "shopifyAccessToken": {
+      "$uid": {
+        ".read": "auth.uid === $uid",
+        ".write": "auth.uid === $uid"
+      }
+    }
+  }
+}
