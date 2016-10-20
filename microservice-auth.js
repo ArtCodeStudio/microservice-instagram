@@ -11,7 +11,7 @@ const OAUTH_CALLBACK_PATH = '/shopify-callback';
 var config = require('./config');
 
 // Shopify App OAuth 2 setup
-config.shopifyapp.taggedimages.redirectUri = 'http://localhost:8080'+OAUTH_CALLBACK_PATH
+config.shopifyapp.taggedimages.redirectUri = 'https://shopify.api.jumplink.eu'+OAUTH_CALLBACK_PATH
 var shopifyToken = new ShopifyToken(config.shopifyapp.taggedimages);
 
 // Firebase Setup
@@ -29,12 +29,16 @@ app.use(session({
   resave: false
 }));
 
+app.get('/hello', function (req, res) {
+  res.send('world');
+});
+
 /**
  * Redirects the User to the Shopify authentication consent screen. Also the 'state' cookie is set for later state
  * verification.
  */
 app.get(OAUTH_REDIRECT_PATH, function (req, res) {
-  if (req.session.token) return res.send('Token ready to be used: '+req.session.token);
+  //if (req.session.token) return res.send('Token ready to be used: '+req.session.token);
 
   //
   // Generate a random nonce.
@@ -87,11 +91,19 @@ app.get(OAUTH_CALLBACK_PATH, function (req, res) {
 
     const firebaseToken = createFirebaseToken(req.query.shop);
 
-    req.session.token = token;
+    req.session.firebaseToken = firebaseToken;
+    req.session.shopifyToken = token;
     req.session.state = undefined;
 
     // Serve an HTML page that signs the user in and updates the user profile.
     res.send(signInFirebaseTemplate(firebaseToken, req.query.shop, token));
+  });
+});
+
+app.get('/tokens', function (req, res) {
+  res.jsonp({
+	firebaseToken: req.session.firebaseToken,
+        shopifyToken: req.session.shopifyToken
   });
 });
 
@@ -150,8 +162,8 @@ var signInFirebaseTemplate = function (token, shop, shopifyAccessToken) {
           var defaultApp = firebase.initializeApp(config);
           Promise.all([tempApp.delete(), defaultApp.auth().signInWithCustomToken(token)]).then(function() {
             //window.close();
-            //window.location.href = '${getShopifyAppUrl(shop, config.shopifyapp.taggedimages.apiKey)}';
-            window.location.href = 'https://tagged-images.jumplink.eu/shopify?token=${shopifyAccessToken}?shop=${shop}';
+            window.location.href = '${getShopifyAppUrl(shop, config.shopifyapp.taggedimages.apiKey)}';
+            //window.location.href = 'https://tagged-images.jumplink.eu/shopify?token=${shopifyAccessToken}?shop=${shop}';
           });
         });
       });
