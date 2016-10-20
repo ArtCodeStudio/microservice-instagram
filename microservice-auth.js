@@ -12,24 +12,24 @@
 
 var session = require('express-session');
 var ShopifyToken = require('shopify-token');
+const Firebase = require('firebase');
 var express = require('express');
-
-// Path to the OAuth handlers.
-const OAUTH_REDIRECT_PATH = '/redirect/:shopname';
-const OAUTH_CALLBACK_PATH = '/shopify-callback';
-
 var config = require('./config');
 
-// Shopify App OAuth 2 setup
-config.shopifyapp.taggedimages.redirectUri = 'https://shopify.api.jumplink.eu'+OAUTH_CALLBACK_PATH
-var shopifyToken = new ShopifyToken(config.shopifyapp.taggedimages);
+var shopifyApp = {};
+for(var appName in config.shopifyapp){
+  console.log("shopify appName", appName);
+  shopifyApp[appName] = new ShopifyToken(config.shopifyapp[appName]);
+}
 
-// Firebase Setup
-const firebase = require('firebase');
-firebase.initializeApp({
-  serviceAccount: config.firebase.taggedimages['service-account']
-});
+var firebase = {};
+for(var appName in config.firebase){
+  console.log("firebase appName", appName);
 
+  firebase[appName] = Firebase.initializeApp({
+    serviceAccount: config.firebase[appName]['service-account'],
+  }, appName);
+}
 
 var app = express();
 
@@ -39,34 +39,55 @@ app.use(session({
   resave: false
 }));
 
+/**
+ * Get CURRENT_LOGGED_IN_SHOP from CURRENT_LOGGED_IN_SHOP.myshopify.com
+ */
+var getShopName = function (shop) {
+  return shop.substring(0, shop.indexOf("."));
+};
+
+/**
+ * To test if this microservice is running
+ */
 app.get('/hello', function (req, res) {
   res.send('world');
 });
 
 /**
- * Redirects the User to the Shopify authentication consent screen. Also the 'state' cookie is set for later state
+ * Redirects the User to the Shopify authentication consent screen. Also the 'state' session is set for later state
  * verification.
  */
-app.get(OAUTH_REDIRECT_PATH, function (req, res) {
+app.get('/redirect/:appName/:shopName', function (req, res) {
   //if (req.session.token) return res.send('Token ready to be used: '+req.session.token);
+
+  var appName = req.params.appName;
+  var shopName = req.params.shopName;
+
+  if(!req.session[shopName]) {
+    req.session[shopName] = {};
+  }
+ 
+  if(!req.session[shopName][appName]) {
+    req.session[shopName][appName] = {};
+  }
 
   //
   // Generate a random nonce.
   //
-  var state = shopifyToken.generateNonce();
+  var state = shopifyApp[appName].generateNonce();
 
   //
   // Generate the authorization URL. For the sake of simplicity the shop name
   // is fixed here but it can, of course, be passed along with the request and
   // be different for each request.
   //
-  console.log('generate auth url for:', req.params.shopname);
-  var uri = shopifyToken.generateAuthUrl(req.params.shopname, config.shopifyapp.taggedimages.scopes, state);
+  console.log('generate auth url for:', shopName);
+  var uri = shopifyApp[appName].generateAuthUrl(shopName, config.shopifyapp[appName].scopes, state);
 
   //
   // Save the nonce in the session to verify it later.
   //
-  req.session.state = state;
+  req.session[shopName][appName].state = state;
   console.log('Redirecting to:', uri);
   res.redirect(uri);
 });
@@ -77,13 +98,17 @@ app.get(OAUTH_REDIRECT_PATH, function (req, res) {
  * Session Fixation attacks.
  * This is meant to be used by Web Clients.
  */
-app.get(OAUTH_CALLBACK_PATH, function (req, res) {
+app.get('/shopify-callback/:appName', function (req, res) {
   var state = req.query.state;
+  var appName = req.params.appName;
+
+  console.log("req.query", req.query);
+  var shopName = getShopName(req.query.shop);
 
   if (
       typeof state !== 'string'
-    || state !== req.session.state          // Validate the state.
-    || !shopifyToken.verifyHmac(req.query)  // Validare the hmac.
+    || state !== req.session[shopName][appName].state          // Validate the state.
+    || !shopifyApp[appName].verifyHmac(req.query)  // Validare the hmac.
   ) {
     return res.status(400).send('Security checks failed');
   }
@@ -91,7 +116,7 @@ app.get(OAUTH_CALLBACK_PATH, function (req, res) {
   //
   // Exchange the authorization code for a permanent access token.
   //
-  shopifyToken.getAccessToken(req.query.shop, req.query.code, function (err, token) {
+  shopifyApp[appName].getAccessToken(req.query.shop, req.query.code, function (err, token) {
     if (err) {
       console.error(err.stack);
       return res.status(500).send('Oops, something went wrong');
@@ -99,22 +124,32 @@ app.get(OAUTH_CALLBACK_PATH, function (req, res) {
 
     console.log('Resive Token:',token);
 
-    const firebaseToken = createFirebaseToken(req.query.shop);
+    const firebaseToken = createFirebaseToken(appName, req.query.shop);
 
-    req.session.firebaseToken = firebaseToken;
-    req.session.shopifyToken = token;
-    req.session.state = undefined;
+    req.session[shopName][appName].firebaseToken = firebaseToken;
+    req.session[shopName][appName].shopifyToken = token;
+    req.session[shopName][appName].state = undefined;
 
     // Serve an HTML page that signs the user in and updates the user profile.
     res.send(signInFirebaseTemplate(firebaseToken, req.query.shop, token));
   });
 });
 
-app.get('/tokens', function (req, res) {
-  res.jsonp({
-	  firebaseToken: req.session.firebaseToken,
-    shopifyToken: req.session.shopifyToken
-  });
+app.get('/token/:appName/:shopName', function (req, res) {
+
+  var appName = req.params.appName;
+  var shopName = req.params.shopName;
+
+  if( req.session[shopName] && req.session[shopName][appName] && req.session[shopName][appName].firebaseToken ) {
+    res.jsonp({
+      firebaseToken: req.session[shopName][appName].firebaseToken,
+      // shopifyToken: req.session[shopName][appName].shopifyToken
+    });
+  } else {
+    return res.status(500).send('Oops, something went wrong');
+  }
+
+
 });
 
 /**
@@ -122,12 +157,12 @@ app.get('/tokens', function (req, res) {
  *
  * @returns {Object} The Firebase custom auth token and the uid.
  */
-var createFirebaseToken = function (shopifyStore) {
+var createFirebaseToken = function (appName, shopifyStore) {
   // The UID we'll assign to the user.
   const uid = `shopify:${shopifyStore.replace(/\./g, '-')}`; // replace . (dot) with - (minus) because: Paths must be non-empty strings and can't contain ".", "#", "$", "[", or "]"
 
   // Create the custom token.
-  const token = firebase.auth().createCustomToken(uid);
+  const token = firebase[appName].auth().createCustomToken(uid);
   console.log('Created Custom token for UID "', uid, '" Token:', token);
   return token;
 }
@@ -146,12 +181,17 @@ var getShopifyAppUrl = function (shop, apiKey) {
 var signInFirebaseTemplate = function (token, shop, shopifyAccessToken) {
   return `
     <script src="https://www.gstatic.com/firebasejs/3.4.1/firebase.js"></script>
-    <script src="promise.min.js"></script><!-- Promise Polyfill for older browsers -->
     <script>
+      /*
+       * Promise Polyfill for older browsers
+       * @see https://github.com/taylorhakes/promise-polyfill
+       */
+      !function(e){function n(){}function t(e,n){return function(){e.apply(n,arguments)}}function o(e){if("object"!=typeof this)throw new TypeError("Promises must be constructed via new");if("function"!=typeof e)throw new TypeError("not a function");this._state=0,this._handled=!1,this._value=void 0,this._deferreds=[],s(e,this)}function i(e,n){for(;3===e._state;)e=e._value;return 0===e._state?void e._deferreds.push(n):(e._handled=!0,void o._immediateFn(function(){var t=1===e._state?n.onFulfilled:n.onRejected;if(null===t)return void(1===e._state?r:u)(n.promise,e._value);var o;try{o=t(e._value)}catch(i){return void u(n.promise,i)}r(n.promise,o)}))}function r(e,n){try{if(n===e)throw new TypeError("A promise cannot be resolved with itself.");if(n&&("object"==typeof n||"function"==typeof n)){var i=n.then;if(n instanceof o)return e._state=3,e._value=n,void f(e);if("function"==typeof i)return void s(t(i,n),e)}e._state=1,e._value=n,f(e)}catch(r){u(e,r)}}function u(e,n){e._state=2,e._value=n,f(e)}function f(e){2===e._state&&0===e._deferreds.length&&o._immediateFn(function(){e._handled||o._unhandledRejectionFn(e._value)});for(var n=0,t=e._deferreds.length;n<t;n++)i(e,e._deferreds[n]);e._deferreds=null}function c(e,n,t){this.onFulfilled="function"==typeof e?e:null,this.onRejected="function"==typeof n?n:null,this.promise=t}function s(e,n){var t=!1;try{e(function(e){t||(t=!0,r(n,e))},function(e){t||(t=!0,u(n,e))})}catch(o){if(t)return;t=!0,u(n,o)}}var a=setTimeout;o.prototype["catch"]=function(e){return this.then(null,e)},o.prototype.then=function(e,t){var o=new this.constructor(n);return i(this,new c(e,t,o)),o},o.all=function(e){var n=Array.prototype.slice.call(e);return new o(function(e,t){function o(r,u){try{if(u&&("object"==typeof u||"function"==typeof u)){var f=u.then;if("function"==typeof f)return void f.call(u,function(e){o(r,e)},t)}n[r]=u,0===--i&&e(n)}catch(c){t(c)}}if(0===n.length)return e([]);for(var i=n.length,r=0;r<n.length;r++)o(r,n[r])})},o.resolve=function(e){return e&&"object"==typeof e&&e.constructor===o?e:new o(function(n){n(e)})},o.reject=function(e){return new o(function(n,t){t(e)})},o.race=function(e){return new o(function(n,t){for(var o=0,i=e.length;o<i;o++)e[o].then(n,t)})},o._immediateFn="function"==typeof setImmediate&&function(e){setImmediate(e)}||function(e){a(e,0)},o._unhandledRejectionFn=function(e){"undefined"!=typeof console&&console&&console.warn("Possible Unhandled Promise Rejection:",e)},o._setImmediateFn=function(e){o._immediateFn=e},o._setUnhandledRejectionFn=function(e){o._unhandledRejectionFn=e},"undefined"!=typeof module&&module.exports?module.exports=o:e.Promise||(e.Promise=o)}(this);
+
       var token = '${token}';
       var config = {
-        apiKey: '${config.firebase.taggedimages.apiKey}',
-        databaseURL: 'https://${config.firebase.taggedimages["service-account"].project_id}.firebaseio.com'
+        apiKey: '${config.firebase[appName].apiKey}',
+        databaseURL: 'https://${config.firebase[appName]["service-account"].project_id}.firebaseio.com'
       };
       // We sign in via a temporary Firebase app to update the profile.
       var tempApp = firebase.initializeApp(config, '_temp_');
@@ -171,9 +211,7 @@ var signInFirebaseTemplate = function (token, shop, shopifyAccessToken) {
           // Delete temporary Firebase app and sign in the default Firebase app, then close the popup.
           var defaultApp = firebase.initializeApp(config);
           Promise.all([tempApp.delete(), defaultApp.auth().signInWithCustomToken(token)]).then(function() {
-            //window.close();
-            window.location.href = '${getShopifyAppUrl(shop, config.shopifyapp.taggedimages.apiKey)}';
-            //window.location.href = 'https://tagged-images.jumplink.eu/shopify?token=${shopifyAccessToken}?shop=${shop}';
+            window.location.href = '${getShopifyAppUrl(shop, config.shopifyapp[appName].apiKey)}';
           });
         });
       });
@@ -181,5 +219,5 @@ var signInFirebaseTemplate = function (token, shop, shopifyAccessToken) {
 }
 
 app.listen(8080, function () {
-  console.log('Open http://localhost:8080 in your browser');
+  console.log('Open http://localhost:8080 or https://auth.api.jumplink.eu/hello in your browser');
 });
