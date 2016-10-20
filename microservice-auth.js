@@ -1,3 +1,13 @@
+/**
+ * @see https://firebase.googleblog.com/2016/10/authenticate-your-firebase-users-with.html
+ * @see https://github.com/firebase/custom-auth-samples
+ * @see http://gavinballard.com/shopify-oauth-flow-for-dummies/
+ * @see https://console.firebase.google.com/project/tagged-images/overview
+ * @todo https://firebase.google.com/docs/cli/
+ * @todo https://github.com/Daplie/node-letsencrypt
+ * @see https://github.com/OptimalBits/redbird
+ */
+
 'use strict';
 
 var session = require('express-session');
@@ -112,9 +122,9 @@ app.get('/tokens', function (req, res) {
  *
  * @returns {Object} The Firebase custom auth token and the uid.
  */
-var createFirebaseToken = function (shopifyStoreName) {
+var createFirebaseToken = function (shopifyStore) {
   // The UID we'll assign to the user.
-  const uid = `shopify:${shopifyStoreName.replace(/\./g, '-')}`; // replace . (dot) with - (minus) because: Paths must be non-empty strings and can't contain ".", "#", "$", "[", or "]"
+  const uid = `shopify:${shopifyStore.replace(/\./g, '-')}`; // replace . (dot) with - (minus) because: Paths must be non-empty strings and can't contain ".", "#", "$", "[", or "]"
 
   // Create the custom token.
   const token = firebase.auth().createCustomToken(uid);
