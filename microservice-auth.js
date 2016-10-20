@@ -112,8 +112,8 @@ app.get(OAUTH_CALLBACK_PATH, function (req, res) {
 
 app.get('/tokens', function (req, res) {
   res.jsonp({
-	firebaseToken: req.session.firebaseToken,
-        shopifyToken: req.session.shopifyToken
+	  firebaseToken: req.session.firebaseToken,
+    shopifyToken: req.session.shopifyToken
   });
 });
 
