@@ -105,6 +105,14 @@ app.get('/shopify-callback/:appName', function (req, res) {
   console.log("req.query", req.query);
   var shopName = getShopName(req.query.shop);
 
+  if(!req.session[shopName]) {
+    req.session[shopName] = {};
+  }
+ 
+  if(!req.session[shopName][appName]) {
+    req.session[shopName][appName] = {};
+  }
+
   if (
       typeof state !== 'string'
     || state !== req.session[shopName][appName].state          // Validate the state.
@@ -124,14 +132,15 @@ app.get('/shopify-callback/:appName', function (req, res) {
 
     console.log('Resive Token:',token);
 
-    const firebaseToken = createFirebaseToken(appName, req.query.shop);
+    var firebaseAuth = createFirebaseCustomAuth(appName, req.query.shop);
 
-    req.session[shopName][appName].firebaseToken = firebaseToken;
+    req.session[shopName][appName].firebaseToken = firebaseAuth.token;
+    req.session[shopName][appName].firebaseUid = firebaseAuth.uid;
     req.session[shopName][appName].shopifyToken = token;
     req.session[shopName][appName].state = undefined;
 
     // Serve an HTML page that signs the user in and updates the user profile.
-    res.send(signInFirebaseTemplate(firebaseToken, req.query.shop, token));
+    res.send(signInFirebaseTemplate(req.session[shopName][appName].firebaseToken, req.query.shop, token));
   });
 });
 
@@ -141,13 +150,17 @@ app.get('/token/:appName/:shopName', function (req, res) {
   var shopName = req.params.shopName;
 
   if( req.session[shopName] && req.session[shopName][appName] && req.session[shopName][appName].firebaseToken ) {
-    res.jsonp({
+    return res.jsonp({
       firebaseToken: req.session[shopName][appName].firebaseToken,
+      // firebaseUid: req.session[shopName][appName].firebaseUid,
       // shopifyToken: req.session[shopName][appName].shopifyToken
     });
-  } else {
-    return res.status(500).send('Oops, something went wrong');
   }
+
+    return res.jsonp({
+      status: 404,
+      message: 'Not Found'
+    });
 
 
 });
@@ -157,14 +170,17 @@ app.get('/token/:appName/:shopName', function (req, res) {
  *
  * @returns {Object} The Firebase custom auth token and the uid.
  */
-var createFirebaseToken = function (appName, shopifyStore) {
+var createFirebaseCustomAuth = function (appName, shopifyStore) {
   // The UID we'll assign to the user.
-  const uid = `shopify:${shopifyStore.replace(/\./g, '-')}`; // replace . (dot) with - (minus) because: Paths must be non-empty strings and can't contain ".", "#", "$", "[", or "]"
+  var uid = `shopify:${shopifyStore.replace(/\./g, '-')}`; // replace . (dot) with - (minus) because: Paths must be non-empty strings and can't contain ".", "#", "$", "[", or "]"
 
   // Create the custom token.
-  const token = firebase[appName].auth().createCustomToken(uid);
+  var token = firebase[appName].auth().createCustomToken(uid);
   console.log('Created Custom token for UID "', uid, '" Token:', token);
-  return token;
+  return {
+    token: token,
+    uid: uid,
+  };
 }
 
 var getShopifyAppUrl = function (shop, apiKey) {
@@ -219,5 +235,5 @@ var signInFirebaseTemplate = function (token, shop, shopifyAccessToken) {
 }
 
 app.listen(8080, function () {
-  console.log('Open http://localhost:8080 or https://auth.api.jumplink.eu/hello in your browser');
+  console.log('Open http://localhost:8080/hello or https://auth.api.jumplink.eu/hello in your browser');
 });
