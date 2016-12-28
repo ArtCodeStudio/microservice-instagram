@@ -4,5 +4,5 @@
     "append": true,
     "watch": true,
     "script": "microservice-auth.js",
-    "sourceDir": "/home/api/microservice-video/dev/"
+    "sourceDir": "/home/api/microservice-auth/dev/"
 }
