@@ -1,6 +1,8 @@
 {
     // Comments are supported
+    "uid": "microservice-auth (v0.1)",
     "append": true,
     "watch": false,
-    "script": "built/microservice-auth.js"
+    "script": "microservice-auth.js",
+    "sourceDir": "/home/api/microservice-video/v0.1/"
 }

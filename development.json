@@ -3,6 +3,6 @@
     "uid": "microservice-auth (dev)",
     "append": true,
     "watch": true,
-    "script": "built/microservice-auth.js",
+    "script": "microservice-auth.js",
     "sourceDir": "/home/api/microservice-video/dev/"
 }
