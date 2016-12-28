@@ -1,0 +1,6 @@
+{
+    // Comments are supported
+    "append": true,
+    "watch": false,
+    "script": "built/microservice-auth.js"
+}
