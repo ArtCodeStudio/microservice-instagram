@@ -10,6 +10,7 @@
 
 'use strict';
 
+const PORT = process.env.PORT || 8010;
 var session = require('express-session');
 var ShopifyToken = require('shopify-token');
 const Firebase = require('firebase');
@@ -25,7 +26,6 @@ for(var appName in config.shopifyapp){
 var firebase = {};
 for(var appName in config.firebase){
   console.log("firebase appName", appName);
-
   firebase[appName] = Firebase.initializeApp({
     serviceAccount: config.firebase[appName]['service-account'],
   }, appName);
@@ -234,6 +234,6 @@ var signInFirebaseTemplate = function (token, shop, shopifyAccessToken) {
     </script>`;
 }
 
-app.listen(8080, function () {
-  console.log('Open http://localhost:8080/hello or https://auth.api.jumplink.eu/hello in your browser');
+app.listen(PORT, function () {
+  console.log('Open http://localhost:'+PORT+'/hello or https://auth.api.jumplink.eu/hello in your browser');
 });
