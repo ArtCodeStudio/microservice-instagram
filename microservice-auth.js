@@ -148,7 +148,7 @@ app.get('/shopify-callback/:appName', function (req, res) {
       req.session[shopName][appName].state = undefined;
 
       // Serve an HTML page that signs the user in and updates the user profile.
-      res.send(signInFirebaseTemplate(req.session[shopName][appName].firebaseToken, req.query.shop, token));
+      res.send(signInFirebaseTemplate(req.session[shopName][appName].firebaseToken, req.query.shop, appName, token));
     });
 
 
@@ -212,7 +212,7 @@ var getShopifyAppUrl = function (shop, apiKey) {
  *  - Saves the Shopify AccessToken to the Realtime Database
  *  - Closes the popup
  */
-var signInFirebaseTemplate = function (token, shop, shopifyAccessToken) {
+var signInFirebaseTemplate = function (token, shop, appName, shopifyAccessToken) {
   return `
     <script src="https://www.gstatic.com/firebasejs/3.6.2/firebase.js"></script>
     <script>
@@ -227,6 +227,7 @@ var signInFirebaseTemplate = function (token, shop, shopifyAccessToken) {
         apiKey: '${config.firebase[appName].apiKey}',
         databaseURL: 'https://${config.firebase[appName]["service-account"].project_id}.firebaseio.com'
       };
+      console.log("config", config);
       // We sign in via a temporary Firebase app to update the profile.
       var tempApp = firebase.initializeApp(config, '_temp_');
       tempApp.auth().signInWithCustomToken(token).then(function(user) {
