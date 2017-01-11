@@ -13,7 +13,8 @@
 const PORT = process.env.PORT || 8010;
 var session = require('express-session');
 var ShopifyToken = require('shopify-token');
-const Firebase = require('firebase');
+//const Firebase = require('firebase');
+const Firebase = require('firebase-admin');
 var express = require('express');
 var config = require('./config');
 
@@ -132,15 +133,25 @@ app.get('/shopify-callback/:appName', function (req, res) {
 
     console.log('Resive Token:',token);
 
-    var firebaseAuth = createFirebaseCustomAuth(appName, req.query.shop);
+    createFirebaseCustomAuth(appName, req.query.shop, function (err, firebaseAuth) {
+    
+      if(err) {
+        return res.jsonp({
+          status: 500,
+          message: err
+        });
+      }
+    
+      req.session[shopName][appName].firebaseToken = firebaseAuth.token;
+      req.session[shopName][appName].firebaseUid = firebaseAuth.uid;
+      req.session[shopName][appName].shopifyToken = token;
+      req.session[shopName][appName].state = undefined;
 
-    req.session[shopName][appName].firebaseToken = firebaseAuth.token;
-    req.session[shopName][appName].firebaseUid = firebaseAuth.uid;
-    req.session[shopName][appName].shopifyToken = token;
-    req.session[shopName][appName].state = undefined;
+      // Serve an HTML page that signs the user in and updates the user profile.
+      res.send(signInFirebaseTemplate(req.session[shopName][appName].firebaseToken, req.query.shop, token));
+    });
 
-    // Serve an HTML page that signs the user in and updates the user profile.
-    res.send(signInFirebaseTemplate(req.session[shopName][appName].firebaseToken, req.query.shop, token));
+
   });
 });
 
@@ -170,17 +181,24 @@ app.get('/token/:appName/:shopName', function (req, res) {
  *
  * @returns {Object} The Firebase custom auth token and the uid.
  */
-var createFirebaseCustomAuth = function (appName, shopifyStore) {
+var createFirebaseCustomAuth = function (appName, shopifyStore, cb) {
   // The UID we'll assign to the user.
   var uid = `shopify:${shopifyStore.replace(/\./g, '-')}`; // replace . (dot) with - (minus) because: Paths must be non-empty strings and can't contain ".", "#", "$", "[", or "]"
 
   // Create the custom token.
-  var token = firebase[appName].auth().createCustomToken(uid);
-  console.log('Created Custom token for UID "', uid, '" Token:', token);
-  return {
-    token: token,
-    uid: uid,
-  };
+  firebase[appName].auth().createCustomToken(uid)
+  .then(function(customToken) {
+    // Send token back to client
+    console.log('Created Custom token for UID "', uid, '" Token:', customToken);
+    return cb(null, {
+      token: customToken,
+      uid: uid,
+    })
+  })
+  .catch(function(error) {
+    console.log("Error creating custom token:", error);
+    return cb(error);
+  });
 }
 
 var getShopifyAppUrl = function (shop, apiKey) {
@@ -196,7 +214,7 @@ var getShopifyAppUrl = function (shop, apiKey) {
  */
 var signInFirebaseTemplate = function (token, shop, shopifyAccessToken) {
   return `
-    <script src="https://www.gstatic.com/firebasejs/3.4.1/firebase.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/3.6.2/firebase.js"></script>
     <script>
       /*
        * Promise Polyfill for older browsers
