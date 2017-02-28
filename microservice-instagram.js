@@ -71,6 +71,11 @@ app.get('/hello', function (req, res) {
   res.send('world');
 });
 
+app.get('/setup', function (req, res) {
+
+  res.render(`setup`, {apps: config.instagramApps});
+});
+
 app.get('/setup/:appName', function (req, res) {
   res.render(`setup/${req.params.appName}`, {appName: req.params.appName});
 });
