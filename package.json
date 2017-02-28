@@ -1,6 +1,6 @@
 {
-  "name": "microservice-shopify-auth",
-  "version": "1.0.0",
+  "name": "microservice-instagram",
+  "version": "dev",
   "description": "",
   "main": "index.js",
   "keywords": [
@@ -9,13 +9,14 @@
     "firebase",
     "oauth"
   ],
-  "author": "Luigi Pinca",
+  "author": "Pascal Garber",
   "license": "MIT",
   "dependencies": {
+    "crypto": "0.0.3",
     "express": "^4.13.3",
     "express-session": "^1.12.1",
-    "firebase": "^3.4.1",
     "firebase-admin": "^4.0.4",
-    "shopify-token": "^2.1.0"
+    "pug": "^2.0.0-beta11",
+    "simple-oauth2": "^1.0.3"
   }
 }
